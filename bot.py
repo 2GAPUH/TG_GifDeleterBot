@@ -7,7 +7,7 @@ from PIL import Image
 import cv2 # Добавь этот импорт в начало файла
 
 TOKEN = "8310127654:AAGX4xWVueRTWm9c76JBqPQ5KG91NTCC86E"
-# Список хешей «запрещенок» (примеры хешей)
+# Список хешей «запрещенок» (примеры хешей) asd
 FORBIDDEN_HASHES = ["2f71f1f2f0608838"]
 
 bot = Bot(token=TOKEN)
