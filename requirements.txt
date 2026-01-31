@@ -1,2 +1,3 @@
 aiogram
-requirements.txt
+Pillow
+ImageHash
