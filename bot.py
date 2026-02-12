@@ -31,13 +31,13 @@ def load_answers():
 ANSWERS_POOL = load_answers()
 
 
-# --- Хендлер для текста "фембой" ---
-@dp.message(F.text.lower().contains("фембой"))
+# --- Хендлер для текста, содержащего "фемб" ---
+@dp.message(F.text.lower().contains("фемб"))
 async def handle_keywords(message: Message):
     if ANSWERS_POOL:
         # Выбираем случайный ответ
         random_answer = random.choice(ANSWERS_POOL)
-        # Отвечаем на сообщение (reply)
+        # Отвечаем на сообщение
         await message.reply(random_answer)
     else:
         print("Список ответов пуст или файл не найден.")
