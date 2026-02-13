@@ -3,3 +3,4 @@ Pillow
 ImageHash
 shlex
 aiohttp
+opencv-python
