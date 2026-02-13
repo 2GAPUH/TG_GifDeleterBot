@@ -2,3 +2,4 @@ aiogram
 Pillow
 ImageHash
 shlex
+aiohttp
