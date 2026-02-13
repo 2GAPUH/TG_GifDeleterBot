@@ -13,8 +13,8 @@ from PIL import Image
 import cv2
 
 # --- НАСТРОЙКИ ---
-TOKEN = "ВАШ_ТЕЛЕГРАМ_ТОКЕН"
-DEEPSEEK_TOKEN = "ВАШ_DEEPSEEK_КЛЮЧ"
+TOKEN = "8310127654:AAGX4xWVueRTWm9c76JBqPQ5KG91NTCC86E"
+DEEPSEEK_TOKEN = "8310127654:AAGX4xWVueRTWm9c76JBqPQ5KG91NTCC86E"
 
 FORBIDDEN_HASHES = ["2f71f1f2f0608838"]
 DATA_FILE = "triggers.json"
