@@ -3,7 +3,8 @@ import os
 import random
 import json
 import re
-import logging  # ### Добавлено логирование
+import logging
+import sys
 import aiohttp
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, BotCommand, BotCommandScopeDefault
@@ -12,19 +13,40 @@ import imagehash
 from PIL import Image
 import cv2
 
-# --- НАСТРОЙКИ ---
-TOKEN = "8310127654:AAGX4xWVueRTWm9c76JBqPQ5KG91NTCC86E"
-DEEPSEEK_TOKEN = "sk-5ee09a86e876496ead1f54fc7f4f33c2"
-
-FORBIDDEN_HASHES = ["2f71f1f2f0608838"]
-DATA_FILE = "triggers.json"
-
-# Включаем логирование, чтобы видеть ошибки в консоли
+# Включаем логирование
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+
+# --- ЗАГРУЗКА КЛЮЧЕЙ ---
+def load_api_keys():
+    if not os.path.exists("api_keys.json"):
+        logging.critical("Файл api_keys.json не найден! Бот остановлен.")
+        sys.exit(1)
+
+    try:
+        with open("api_keys.json", "r", encoding="utf-8") as f:
+            keys = json.load(f)
+            tg_key = keys.get("telegram_api_key")
+            ds_key = keys.get("deepseek_api_key")
+
+            if not tg_key or not ds_key:
+                logging.critical("В файле api_keys.json отсутствуют нужные ключи! Бот остановлен.")
+                sys.exit(1)
+
+            return tg_key, ds_key
+    except json.JSONDecodeError:
+        logging.critical("Ошибка синтаксиса в api_keys.json. Проверьте запятые и кавычки!")
+        sys.exit(1)
+
+
+# Инициализация ключей и бота
+TOKEN, DEEPSEEK_TOKEN = load_api_keys()
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+# --- НАСТРОЙКИ ---
+FORBIDDEN_HASHES = ["2f71f1f2f0608838"]
+DATA_FILE = "triggers.json"
 TRIGGERS_DB = {}
 
 
@@ -69,7 +91,6 @@ load_data()
 
 # --- Настройка меню команд ---
 async def set_main_menu(bot: Bot):
-    # Создаем список команд для меню
     main_menu_commands = [
         BotCommand(command="factcheck", description="Проверить факт (в ответ на сообщение)"),
         BotCommand(command="add", description="Добавить триггер: @bot add \"слово\" \"ответ\""),
@@ -79,21 +100,17 @@ async def set_main_menu(bot: Bot):
 
 
 # --- Хендлер: FACT CHECKING ---
-# Реагирует на фразы "fact checking" или команду "/factcheck"
 @dp.message(F.text.lower().contains("fact checking") | (F.text.lower() == "/factcheck"))
 async def fact_check_handler(message: Message):
     bot_user = await bot.get_me()
     bot_mention = f"@{bot_user.username}"
     text = message.text.lower()
 
-    # Проверка: если это не команда /factcheck, то должно быть упоминание бота
     if "/factcheck" not in text and bot_mention.lower() not in text:
-        return  # Игнорируем, если просто написали "fact checking" без упоминания
+        return
 
-    # Проверяем реплай
     if not message.reply_to_message or not message.reply_to_message.text:
-        await message.reply(
-            "⚠️ Эту команду нужно использовать **в ответ** (Reply) на сообщение с текстом, который нужно проверить.")
+        await message.reply("⚠️ Эту команду нужно использовать **в ответ** (Reply) на сообщение с текстом.")
         return
 
     original_text = message.reply_to_message.text
@@ -117,7 +134,6 @@ async def fact_check_handler(message: Message):
     }
 
     try:
-        # Увеличиваем тайм-аут до 60 секунд
         timeout = aiohttp.ClientTimeout(total=60)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, headers=headers, json=payload) as response:
@@ -125,7 +141,6 @@ async def fact_check_handler(message: Message):
                     result = await response.json()
                     answer = result['choices'][0]['message']['content']
                     await message.reply_to_message.reply(f"🧠 **Анализ DeepSeek:**\n\n{answer}", parse_mode="Markdown")
-                    logging.info("Ответ от DeepSeek получен успешно.")
                 else:
                     error_text = await response.text()
                     logging.error(f"DeepSeek API Error {response.status}: {error_text}")
@@ -145,13 +160,12 @@ async def add_new_trigger(message: Message):
     bot_user = await bot.get_me()
     bot_mention = f"@{bot_user.username}"
 
-    # Если бота не упомянули, выходим, чтобы это сообщение попало в общий обработчик текста
     if bot_mention.lower() not in text.lower():
         return
 
     clean_text = re.sub(re.escape(bot_mention), "", text, flags=re.IGNORECASE).strip()
-
     mode = "common"
+
     if "-fulltrigger" in clean_text.lower():
         mode = "fulltrigger"
         clean_text = re.sub(r"-fulltrigger", "", clean_text, flags=re.IGNORECASE)
@@ -159,9 +173,7 @@ async def add_new_trigger(message: Message):
         mode = "common"
         clean_text = re.sub(r"-common", "", clean_text, flags=re.IGNORECASE)
 
-    # Упрощенная проверка, чтобы точно поймать команду
     if not clean_text.lower().startswith("add"):
-        # Если слово add есть, но не в начале после чистки, возможно это просто чат
         return
 
     args_text = clean_text[3:].strip()
@@ -218,14 +230,12 @@ async def handle_gifs(message: Message):
 
 
 # --- УНИВЕРСАЛЬНЫЙ ХЕНДЛЕР: ТРИГГЕРЫ + НЕИЗВЕСТНЫЕ КОМАНДЫ ---
-# Этот хендлер должен быть ПОСЛЕДНИМ среди текстовых
 @dp.message(F.text)
 async def process_text_and_unknown_commands(message: Message):
     msg_text = message.text.lower()
     bot_user = await bot.get_me()
     bot_mention = f"@{bot_user.username}".lower()
 
-    # 1. Сначала проверяем базу триггеров
     trigger_fired = False
     for trigger, data in TRIGGERS_DB.items():
         mode = data.get("mode", "common")
@@ -240,25 +250,16 @@ async def process_text_and_unknown_commands(message: Message):
         if match and answers:
             await message.reply(random.choice(answers))
             trigger_fired = True
-            break  # Отвечаем только на один триггер
+            break
 
-    # 2. Если триггер не сработал, проверяем, обращались ли к боту
     if not trigger_fired:
-        # Проверяем, есть ли упоминание бота в тексте
         if bot_mention in msg_text:
-            # Сюда мы попадаем, если:
-            # - Это текст с упоминанием бота
-            # - Это НЕ команда add (она обработана выше)
-            # - Это НЕ команда fact checking (она обработана выше)
-            # - Это НЕ триггер из базы
             await message.reply("🤔 Я не знаю такой команды.\nПопробуйте `/factcheck` или `add`.")
 
 
 async def main():
-    # Регистрируем меню команд при старте
     await set_main_menu(bot)
     logging.info("Бот запущен. Ожидание сообщений...")
-    # Удаляем старые обновления, чтобы бот не отвечал на всё, что пришло пока он спал
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
