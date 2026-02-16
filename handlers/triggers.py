@@ -73,13 +73,13 @@ async def process_text_and_unknown_commands(message: Message):
 
     # 1. СОХРАНЯЕМ КОНТЕКСТ
     if chat_id not in CHAT_HISTORY:
-        CHAT_HISTORY[chat_id] = deque(maxlen=15)
+        CHAT_HISTORY[chat_id] = deque(maxlen=30)
 
     # Формат: "Имя: текст сообщения"
     CHAT_HISTORY[chat_id].append(f"{user_name}: {msg_text}")
 
     # 2. ПРОВЕРЯЕМ ШАНС 1% (ROFL MODE)
-    if random.randint(1, 100) == 1 and len(CHAT_HISTORY[chat_id]) > 2:
+    if random.randint(1, 1000) == 1 and len(CHAT_HISTORY[chat_id]) > 2:
         # Теперь ChatAction работает корректно через enums
         await message.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
 
