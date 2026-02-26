@@ -81,3 +81,76 @@ async def generate_rofl_response(context_messages: list) -> str:
     except Exception as e:
         logging.exception(f"ROFL request failed: {e}")
         return None
+
+
+async def ask_question_with_ai(question: str, context: str = None) -> str:
+    """
+    Обращается к DeepSeek с вопросом, опционально с контекстом.
+
+    Args:
+        question: Текст вопроса пользователя
+        context: Контекст (текст сообщения, на которое ответили)
+
+    Returns:
+        Ответ от DeepSeek или None в случае ошибки
+    """
+    url = "https://api.deepseek.com/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {DEEPSEEK_TOKEN}"
+    }
+
+    # Формируем сообщения для API
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Ты — умный и helpful ассистент в Telegram-чате. "
+                "Отвечай на вопросы понятно, кратко, но информативно. "
+                "Используй форматирование (жирный, курсив) где уместно. "
+                "Если вопрос связан с контекстом переписки — учитывай его. "
+                "Пиши на русском языке, дружелюбно и по делу."
+            )
+        }
+    ]
+
+    # Формируем user-сообщение
+    if context and question:
+        user_content = (
+            f"📚 **Контекст (сообщение из чата):**\n{context}\n\n"
+            f"❓ **Вопрос:** {question}"
+        )
+    elif context:
+        user_content = (
+            f"Проанализируй это сообщение и дай полезный комментарий или пояснение:\n\n"
+            f"{context}"
+        )
+    else:
+        user_content = question
+
+    messages.append({"role": "user", "content": user_content})
+
+    payload = {
+        "model": "deepseek-chat",
+        "messages": messages,
+        "stream": False,
+        "temperature": 0.7  # Баланс между креативностью и точностью
+    }
+
+    try:
+        timeout = aiohttp.ClientTimeout(total=60)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return result['choices'][0]['message']['content']
+                else:
+                    error_text = await response.text()
+                    logging.error(f"DeepSeek Question API Error {response.status}: {error_text}")
+                    return None
+    except asyncio.TimeoutError:
+        logging.error("DeepSeek Question API Timeout")
+        return None
+    except Exception as e:
+        logging.exception(f"Question request failed: {e}")
+        return None
